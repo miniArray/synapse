@@ -54,42 +54,6 @@ export type ConnectionNode = {
   connections?: ReadonlyArray<ConnectionNode>;
 };
 
-// AJSON data structures (matching Smart Connections format)
-export type EmbeddingData = {
-  vec: ReadonlyArray<number>;
-  last_embed: {
-    hash: string;
-    tokens: number;
-  };
-};
-
-export type SmartSourceData = {
-  path: string;
-  embeddings: Record<string, EmbeddingData>;
-  blocks: Record<string, readonly [number, number]>;
-  outlinks?: ReadonlyArray<{
-    title: string;
-    target: string;
-    line: number;
-  }>;
-  metadata?: {
-    id?: string;
-    aliases?: ReadonlyArray<string>;
-    tags?: ReadonlyArray<string>;
-  };
-  class_name: "SmartSource";
-};
-
-export type SmartBlockData = {
-  path: null;
-  embeddings: Record<string, EmbeddingData>;
-  key: string;
-  lines: readonly [number, number];
-  class_name: "SmartBlock";
-};
-
-export type AjsonEntry = SmartSourceData | SmartBlockData;
-
 export type EmbeddingIndex = {
   sources: Map<
     string,
