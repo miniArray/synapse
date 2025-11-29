@@ -29,8 +29,9 @@ export class BunSSETransport implements Transport {
       start: (controller) => {
         this.controller = controller;
         // Send endpoint event with session ID
+        // Use relative path so client constructs correct URL through proxies
         controller.enqueue(
-          `event: endpoint\ndata: /messages?sessionId=${this.sessionId}\n\n`,
+          `event: endpoint\ndata: messages?sessionId=${this.sessionId}\n\n`,
         );
       },
       cancel: () => {
