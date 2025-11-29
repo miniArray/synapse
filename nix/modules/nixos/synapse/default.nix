@@ -1,3 +1,4 @@
+{ self }:
 {
   config,
   lib,
@@ -66,6 +67,8 @@ in
 
     package = mkOption {
       type = types.package;
+      default = self.packages.${pkgs.system}.default;
+      defaultText = lib.literalExpression "self.packages.\${pkgs.system}.default";
       description = "Synapse package to use";
     };
   };

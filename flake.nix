@@ -21,8 +21,8 @@
     in
     {
       nixosModules = {
-        default = import ./nix/modules/nixos/synapse;
-        synapse = import ./nix/modules/nixos/synapse;
+        default = import ./nix/modules/nixos/synapse { inherit self; };
+        synapse = import ./nix/modules/nixos/synapse { inherit self; };
       };
 
       packages = forAllSystems (
