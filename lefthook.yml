@@ -1,0 +1,25 @@
+pre-commit:
+  parallel: true
+  commands:
+    gitleaks:
+      glob: "*"
+      run: gitleaks detect --source . --verbose
+      fail_text: "Secrets detected! Remove them before committing."
+    biome:
+      glob: "*.{ts,tsx,js,jsx,json}"
+      run: biome check --write --no-errors-on-unmatched {staged_files}
+      stage_fixed: true
+    nixfmt:
+      glob: "*.nix"
+      run: nixfmt {staged_files}
+      stage_fixed: true
+    prettier:
+      glob: "*.{md,yml,yaml}"
+      run: prettier --write {staged_files}
+      stage_fixed: true
+
+pre-push:
+  commands:
+    build:
+      run: bun run build
+      fail_text: "Build failed! Fix errors before pushing."

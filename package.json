@@ -1,0 +1,32 @@
+{
+  "name": "synapse",
+  "version": "0.1.0",
+  "description": "SSE-based MCP server for semantic search over your knowledge vault",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "start": "bun run src/index.ts",
+    "build": "bun build src/index.ts --outdir dist --target node",
+    "dev": "bun run --watch src/index.ts"
+  },
+  "keywords": [
+    "mcp",
+    "semantic-search",
+    "embeddings",
+    "knowledge-management"
+  ],
+  "author": "Simon Jackson",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
