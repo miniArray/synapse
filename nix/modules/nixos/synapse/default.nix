@@ -76,6 +76,7 @@ in
   config = mkIf cfg.enable (
     let
       envPath = if cfg.envPath != null then cfg.envPath else "${cfg.vaultPath}/.synapse";
+      isSystemUser = cfg.user == "synapse";
     in
     {
       systemd.services.synapse = {
@@ -94,6 +95,8 @@ in
           ENV_PATH = toString envPath;
           OLLAMA_URL = cfg.ollamaUrl;
           OLLAMA_MODEL = cfg.ollamaModel;
+        }
+        // lib.optionalAttrs isSystemUser {
           HOME = "/var/lib/synapse";
           XDG_CACHE_HOME = "/var/lib/synapse/.cache";
         };
@@ -106,14 +109,9 @@ in
           Restart = "always";
           RestartSec = "10";
 
-          # Writable state directory for bun cache
-          StateDirectory = "synapse";
-          StateDirectoryMode = "0750";
-
-          # Security hardening
+          # Security hardening (relaxed when running as real user)
           NoNewPrivileges = true;
           ProtectSystem = "strict";
-          ProtectHome = "read-only";
           PrivateTmp = true;
           PrivateDevices = true;
           ProtectHostname = true;
@@ -133,9 +131,14 @@ in
           RestrictSUIDSGID = true;
           RemoveIPC = true;
 
-          # File system access
-          ReadOnlyPaths = [ cfg.vaultPath ];
+          # File system access - only restrict when using system user
           ReadWritePaths = [ envPath ];
+        }
+        // lib.optionalAttrs isSystemUser {
+          StateDirectory = "synapse";
+          StateDirectoryMode = "0750";
+          ProtectHome = "read-only";
+          ReadOnlyPaths = [ cfg.vaultPath ];
         };
       };
 
