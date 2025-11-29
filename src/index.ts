@@ -116,9 +116,19 @@ function createServer(): Server {
 }
 
 async function main(): Promise<void> {
+  const vaultPath = process.env["VAULT_PATH"];
+  const envPath = process.env["ENV_PATH"];
+
+  if (!vaultPath) {
+    console.error(
+      "[Synapse] Error: VAULT_PATH environment variable is required",
+    );
+    process.exit(1);
+  }
+
   const config: EnvironmentConfig = {
-    vault_path: process.env["VAULT_PATH"] ?? "/snowscape/knowledge",
-    env_path: process.env["ENV_PATH"] ?? "/snowscape/knowledge/.smart-env",
+    vault_path: vaultPath,
+    env_path: envPath ?? `${vaultPath}/.synapse`,
   };
 
   console.error("[Synapse] Starting...");

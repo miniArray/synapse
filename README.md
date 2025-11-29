@@ -5,21 +5,20 @@ SSE-based MCP server for semantic search over your knowledge vault.
 ## Server Setup (Remote Host)
 
 ```bash
-cd /snowscape/knowledge/synapse
 npm install
-bun run start
+VAULT_PATH=/path/to/your/vault bun run start
 ```
 
 Server runs on `http://0.0.0.0:3939` by default.
 
 ### Environment Variables
 
-| Variable     | Default                           | Description     |
-| ------------ | --------------------------------- | --------------- |
-| `MCP_PORT`   | `3939`                            | HTTP port       |
-| `MCP_HOST`   | `0.0.0.0`                         | Bind address    |
-| `VAULT_PATH` | `/snowscape/knowledge`            | Path to vault   |
-| `ENV_PATH`   | `/snowscape/knowledge/.smart-env` | Embeddings data |
+| Variable     | Required | Default                | Description     |
+| ------------ | -------- | ---------------------- | --------------- |
+| `VAULT_PATH` | Yes      | -                      | Path to vault   |
+| `ENV_PATH`   | No       | `$VAULT_PATH/.synapse` | Embeddings data |
+| `MCP_PORT`   | No       | `3939`                 | HTTP port       |
+| `MCP_HOST`   | No       | `0.0.0.0`              | Bind address    |
 
 ## Client Setup (Local Machine)
 
