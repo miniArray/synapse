@@ -31,14 +31,25 @@ in
 
     vaultPath = mkOption {
       type = types.path;
-      default = "/snowscape/knowledge";
       description = "Path to the knowledge vault";
     };
 
     envPath = mkOption {
-      type = types.path;
-      default = "/snowscape/knowledge/.smart-env";
-      description = "Path to the smart-env embeddings directory";
+      type = types.nullOr types.path;
+      default = null;
+      description = "Path to store embeddings database. Defaults to vaultPath/.synapse";
+    };
+
+    ollamaUrl = mkOption {
+      type = types.str;
+      default = "http://localhost:11434";
+      description = "URL for the Ollama API";
+    };
+
+    ollamaModel = mkOption {
+      type = types.str;
+      default = "nomic-embed-text";
+      description = "Ollama model to use for embeddings";
     };
 
     user = mkOption {
@@ -55,73 +66,84 @@ in
 
     package = mkOption {
       type = types.package;
-      default = pkgs.synapse;
       description = "Synapse package to use";
     };
   };
 
-  config = mkIf cfg.enable {
-    systemd.services.synapse = {
-      description = "Synapse MCP Server";
-      after = [ "network.target" ];
-      wantedBy = [ "multi-user.target" ];
+  config = mkIf cfg.enable (
+    let
+      envPath = if cfg.envPath != null then cfg.envPath else "${cfg.vaultPath}/.synapse";
+    in
+    {
+      systemd.services.synapse = {
+        description = "Synapse MCP Server";
+        after = [
+          "network.target"
+          "ollama.service"
+        ];
+        wants = [ "ollama.service" ];
+        wantedBy = [ "multi-user.target" ];
 
-      environment = {
-        MCP_PORT = toString cfg.port;
-        MCP_HOST = cfg.host;
-        VAULT_PATH = cfg.vaultPath;
-        ENV_PATH = cfg.envPath;
+        environment = {
+          MCP_PORT = toString cfg.port;
+          MCP_HOST = cfg.host;
+          VAULT_PATH = toString cfg.vaultPath;
+          ENV_PATH = toString envPath;
+          OLLAMA_URL = cfg.ollamaUrl;
+          OLLAMA_MODEL = cfg.ollamaModel;
+          HOME = "/var/lib/synapse";
+          XDG_CACHE_HOME = "/var/lib/synapse/.cache";
+        };
+
+        serviceConfig = {
+          Type = "simple";
+          User = cfg.user;
+          Group = cfg.group;
+          ExecStart = "${cfg.package}/bin/synapse";
+          Restart = "always";
+          RestartSec = "10";
+
+          # Writable state directory for bun cache
+          StateDirectory = "synapse";
+          StateDirectoryMode = "0750";
+
+          # Security hardening
+          NoNewPrivileges = true;
+          ProtectSystem = "strict";
+          ProtectHome = "read-only";
+          PrivateTmp = true;
+          PrivateDevices = true;
+          ProtectHostname = true;
+          ProtectClock = true;
+          ProtectKernelTunables = true;
+          ProtectKernelModules = true;
+          ProtectKernelLogs = true;
+          ProtectControlGroups = true;
+          RestrictAddressFamilies = [
+            "AF_UNIX"
+            "AF_INET"
+            "AF_INET6"
+          ];
+          RestrictNamespaces = true;
+          LockPersonality = true;
+          RestrictRealtime = true;
+          RestrictSUIDSGID = true;
+          RemoveIPC = true;
+
+          # File system access
+          ReadOnlyPaths = [ cfg.vaultPath ];
+          ReadWritePaths = [ envPath ];
+        };
       };
 
-      serviceConfig = {
-        Type = "simple";
-        User = cfg.user;
-        Group = cfg.group;
-        ExecStart = "${cfg.package}/bin/synapse";
-        Restart = "always";
-        RestartSec = "10";
-
-        # Writable state directory for cache
-        StateDirectory = "synapse";
-        Environment = "HOME=/var/lib/synapse";
-
-        # Security hardening
-        NoNewPrivileges = true;
-        ProtectSystem = "strict";
-        ProtectHome = "read-only";
-        PrivateTmp = true;
-        PrivateDevices = true;
-        ProtectHostname = true;
-        ProtectClock = true;
-        ProtectKernelTunables = true;
-        ProtectKernelModules = true;
-        ProtectKernelLogs = true;
-        ProtectControlGroups = true;
-        RestrictAddressFamilies = [
-          "AF_UNIX"
-          "AF_INET"
-          "AF_INET6"
-        ];
-        RestrictNamespaces = true;
-        LockPersonality = true;
-        RestrictRealtime = true;
-        RestrictSUIDSGID = true;
-        RemoveIPC = true;
-
-        # Read access to vault
-        ReadOnlyPaths = [
-          cfg.vaultPath
-          cfg.envPath
-        ];
+      users.users.${cfg.user} = mkIf (cfg.user == "synapse") {
+        description = "Synapse MCP server user";
+        isSystemUser = true;
+        group = cfg.group;
+        home = "/var/lib/synapse";
       };
-    };
 
-    users.users.${cfg.user} = mkIf (cfg.user == "synapse") {
-      description = "Synapse MCP server user";
-      isSystemUser = true;
-      group = cfg.group;
-    };
-
-    users.groups.${cfg.group} = mkIf (cfg.group == "synapse") { };
-  };
+      users.groups.${cfg.group} = mkIf (cfg.group == "synapse") { };
+    }
+  );
 }
