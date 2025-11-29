@@ -220,6 +220,16 @@ export function startWatcher(
     handleChange,
   );
 
+  // Handle watcher errors gracefully (e.g., permission denied on some files)
+  fsWatcher.on("error", (error) => {
+    // Log but don't crash on permission errors
+    if ((error as NodeJS.ErrnoException).code === "EACCES") {
+      console.error("[Watcher] Permission denied (ignored):", error.message);
+    } else {
+      console.error("[Watcher] Error:", error);
+    }
+  });
+
   // Return watcher control object
   return {
     stop(): void {
