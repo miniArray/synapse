@@ -81,6 +81,10 @@ in
         Restart = "always";
         RestartSec = "10";
 
+        # Writable state directory for cache
+        StateDirectory = "synapse";
+        Environment = "HOME=/var/lib/synapse";
+
         # Security hardening
         NoNewPrivileges = true;
         ProtectSystem = "strict";
