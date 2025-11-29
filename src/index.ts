@@ -49,7 +49,7 @@ function createServer(): Server {
               {
                 type: "text" as const,
                 text: JSON.stringify(
-                  searchNotes(args as Parameters<typeof searchNotes>[0]),
+                  await searchNotes(args as Parameters<typeof searchNotes>[0]),
                   null,
                   2,
                 ),

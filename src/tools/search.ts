@@ -1,14 +1,13 @@
 /**
- * Search notes using text query
+ * Search notes using semantic embeddings
  *
- * Note: This implementation searches using existing embeddings only.
- * For text queries, we would need an embedding model. For now, we
- * search by finding notes whose content matches the query semantically
- * by comparing against all stored embeddings.
+ * Generates an embedding for the query text and finds similar notes
+ * using cosine similarity against the pre-computed embeddings.
  */
 
 import { z } from "zod";
-import { getIndex } from "../embedding-index.js";
+import { generateQueryEmbedding } from "../embed-model.js";
+import { findNearestSources } from "../embedding-index.js";
 import type { NoteResult } from "../types.js";
 
 export const SearchNotesSchema = z.object({
@@ -20,63 +19,33 @@ export const SearchNotesSchema = z.object({
 export type SearchNotesParams = z.infer<typeof SearchNotesSchema>;
 
 /**
- * Search notes by query
+ * Search notes by query using semantic search
  *
- * Since we don't have an embedding model loaded, this performs a
- * keyword-based fallback search matching the query against note paths.
- * For true semantic search, use get_similar_notes with a known note path.
+ * Generates an embedding for the query and finds semantically similar notes.
  */
-export function searchNotes(
+export async function searchNotes(
   params: SearchNotesParams,
-): ReadonlyArray<NoteResult> {
+): Promise<ReadonlyArray<NoteResult>> {
   const limit = params.limit ?? 10;
   const threshold = params.threshold ?? 0.5;
-  const query = params.query.toLowerCase();
-  const idx = getIndex();
 
-  // Keyword search fallback - match query terms against paths
-  const results: Array<NoteResult> = [];
+  console.error(`[Search] Generating embedding for: "${params.query}"`);
 
-  for (const [path, source] of idx.sources) {
-    const pathLower = path.toLowerCase();
+  // Generate embedding for the query
+  const queryEmbedding = await generateQueryEmbedding(params.query);
 
-    // Simple relevance scoring based on query term matches
-    const queryTerms = query.split(/\s+/).filter((t) => t.length > 0);
-    let matchCount = 0;
+  // Find similar notes using the query embedding
+  const results = findNearestSources(queryEmbedding, limit, threshold);
 
-    for (const term of queryTerms) {
-      if (pathLower.includes(term)) {
-        matchCount++;
-      }
-    }
+  console.error(`[Search] Found ${results.length} results`);
 
-    if (matchCount > 0) {
-      // Calculate a pseudo-similarity score based on match ratio
-      const similarity = matchCount / queryTerms.length;
-      if (similarity >= threshold) {
-        results.push({
-          path,
-          similarity,
-          blocks: source.blocks,
-        });
-      }
-    }
-  }
-
-  // Sort by similarity descending
-  results.sort((a, b) => b.similarity - a.similarity);
-
-  console.error(
-    `[Search] Found ${Math.min(results.length, limit)} results for: "${params.query}"`,
-  );
-
-  return results.slice(0, limit);
+  return results;
 }
 
 export const searchNotesTool = {
   name: "search_notes",
   description:
-    "Search for notes using a text query. Returns notes ranked by relevance. Note: For true semantic search, use get_similar_notes with a known note path.",
+    "Search for notes using a text query. Returns notes ranked by relevance.",
   inputSchema: {
     type: "object" as const,
     properties: {

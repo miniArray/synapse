@@ -1,105 +1,16 @@
 /**
- * AJSON embedding index - loads and indexes Smart Connections embeddings
+ * SQLite embedding index - loads and indexes embeddings from database
  */
 
-import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import type {
-  AjsonEntry,
-  EmbeddingIndex,
-  SmartBlockData,
-  SmartSourceData,
-} from "./types.js";
+import { getAllSources, getBlocks, openDatabase } from "./storage/database.js";
+import type { EmbeddingIndex } from "./types.js";
 
 // Module state
 let index: EmbeddingIndex | null = null;
-let modelKey: string | null = null;
 
 /**
- * Parse AJSON file format
- * Format: "key": {...},"key2": {...},... with newlines between some entries
- *
- * The format is tricky - entries can span lines or be on the same line.
- * We split on the pattern },"smart_ to separate entries.
- */
-function parseAjsonFile(
-  content: string,
-): Array<{ key: string; entry: AjsonEntry }> {
-  const results: Array<{ key: string; entry: AjsonEntry }> = [];
-
-  // Split content into individual entries
-  // Each entry starts with "smart_sources:" or "smart_blocks:"
-  // Split on },"smart_ but keep the "smart_ part
-  const parts = content.split(/\},\s*"smart_/);
-
-  for (let i = 0; i < parts.length; i++) {
-    let part = parts[i].trim();
-    if (!part) continue;
-
-    // First part might have leading content, rest need "smart_ prefix restored
-    if (i > 0) {
-      part = '"smart_' + part;
-    }
-
-    // Remove leading empty line or $
-    if (part.startsWith("\n") || part.startsWith("$")) {
-      part = part.replace(/^[\n$\s]+/, "");
-    }
-
-    // Add back the closing } that we split on (except for the last part)
-    if (i < parts.length - 1) {
-      part = part + "}";
-    } else {
-      // Last part - remove trailing comma/whitespace
-      part = part.replace(/[,\s$]+$/, "");
-      if (!part.endsWith("}")) continue;
-    }
-
-    // Match pattern: "key": { ... }
-    const keyMatch = part.match(/^"([^"]+)":\s*/);
-    if (!keyMatch) continue;
-
-    const key = keyMatch[1];
-    const jsonStr = part.slice(keyMatch[0].length);
-
-    // Verify it looks like JSON object
-    if (!jsonStr.startsWith("{") || !jsonStr.endsWith("}")) continue;
-
-    try {
-      const entry = JSON.parse(jsonStr) as AjsonEntry;
-      results.push({ key, entry });
-    } catch {
-      // Skip malformed entries
-    }
-  }
-
-  return results;
-}
-
-/**
- * Check if entry is a SmartSource
- */
-function isSmartSource(entry: AjsonEntry): entry is SmartSourceData {
-  return entry.class_name === "SmartSource";
-}
-
-/**
- * Check if entry is a SmartBlock
- */
-function isSmartBlock(entry: AjsonEntry): entry is SmartBlockData {
-  return entry.class_name === "SmartBlock";
-}
-
-/**
- * Extract source path from a block key (e.g., "CLAUDE.md#Section" -> "CLAUDE.md")
- */
-function extractSourcePath(blockKey: string): string {
-  const hashIndex = blockKey.indexOf("#");
-  return hashIndex > 0 ? blockKey.slice(0, hashIndex) : blockKey;
-}
-
-/**
- * Load all AJSON files from the multi directory and build index
+ * Load all embeddings from SQLite database and build in-memory index
  */
 export async function loadEmbeddingIndex(
   envPath: string,
@@ -108,7 +19,7 @@ export async function loadEmbeddingIndex(
     return index;
   }
 
-  const multiDir = join(envPath, "multi");
+  const dbPath = join(envPath, "embeddings.db");
   const sources = new Map<
     string,
     { path: string; vec: ReadonlyArray<number>; blocks: ReadonlyArray<string> }
@@ -118,59 +29,38 @@ export async function loadEmbeddingIndex(
     { key: string; vec: ReadonlyArray<number>; sourcePath: string }
   >();
 
-  console.error(`[Index] Loading embeddings from: ${multiDir}`);
+  console.error(`[Index] Loading embeddings from: ${dbPath}`);
 
   try {
-    const files = await readdir(multiDir);
-    const ajsonFiles = files.filter((f) => f.endsWith(".ajson"));
+    const db = openDatabase(dbPath);
 
-    console.error(`[Index] Found ${ajsonFiles.length} AJSON files`);
+    // Load all sources
+    const allSources = getAllSources(db);
+    for (const source of allSources) {
+      const sourceBlocks = getBlocks(db, source.path);
+      sources.set(source.path, {
+        path: source.path,
+        vec: source.embedding,
+        blocks: sourceBlocks.map((b) => b.blockKey),
+      });
 
-    for (const file of ajsonFiles) {
-      const filePath = join(multiDir, file);
-      const content = await readFile(filePath, "utf-8");
-      const entries = parseAjsonFile(content);
-
-      for (const { entry } of entries) {
-        // Skip entries without embeddings
-        if (!entry.embeddings || typeof entry.embeddings !== "object") continue;
-
-        // Get the embedding vector
-        const embeddingKeys = Object.keys(entry.embeddings);
-        if (embeddingKeys.length === 0) continue;
-
-        // Use first embedding model key found
-        if (!modelKey) {
-          modelKey = embeddingKeys[0];
-          console.error(`[Index] Using embedding model: ${modelKey}`);
-        }
-
-        const embedding = entry.embeddings[modelKey];
-        if (!embedding?.vec) continue;
-
-        if (isSmartSource(entry)) {
-          const blockKeys = entry.blocks ? Object.keys(entry.blocks) : [];
-          sources.set(entry.path, {
-            path: entry.path,
-            vec: embedding.vec,
-            blocks: blockKeys,
-          });
-        } else if (isSmartBlock(entry)) {
-          const sourcePath = extractSourcePath(entry.key);
-          blocks.set(entry.key, {
-            key: entry.key,
-            vec: embedding.vec,
-            sourcePath,
-          });
-        }
+      // Load blocks
+      for (const block of sourceBlocks) {
+        const blockKey = `${source.path}#${block.blockKey}`;
+        blocks.set(blockKey, {
+          key: blockKey,
+          vec: block.embedding,
+          sourcePath: source.path,
+        });
       }
     }
 
     console.error(
-      `[Index] Indexed ${sources.size} sources and ${blocks.size} blocks`,
+      `[Index] Loaded ${sources.size} sources and ${blocks.size} blocks from SQLite`,
     );
 
     index = { sources, blocks };
+    db.close();
     return index;
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
@@ -188,16 +78,6 @@ export function getIndex(): EmbeddingIndex {
     );
   }
   return index;
-}
-
-/**
- * Get the embedding model key being used
- */
-export function getModelKey(): string {
-  if (!modelKey) {
-    throw new Error("Model key not available. Load the index first.");
-  }
-  return modelKey;
 }
 
 /**
