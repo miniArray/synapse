@@ -43,11 +43,11 @@
               SYNAPSE_CACHE="''${XDG_CACHE_HOME:-$HOME/.cache}/synapse"
 
               # Set up runtime directory with deps
-              if [ ! -d "$SYNAPSE_CACHE/node_modules" ] || [ "$SYNAPSE_SRC/bun.lock" -nt "$SYNAPSE_CACHE/.stamp" ]; then
+              if [ ! -d "$SYNAPSE_CACHE/node_modules" ] || [ "$SYNAPSE_SRC/package-lock.json" -nt "$SYNAPSE_CACHE/.stamp" ]; then
                 echo "[Synapse] Installing dependencies..." >&2
                 mkdir -p "$SYNAPSE_CACHE"
-                cp "$SYNAPSE_SRC/package.json" "$SYNAPSE_SRC/bun.lock" "$SYNAPSE_CACHE/"
-                (cd "$SYNAPSE_CACHE" && bun install --frozen-lockfile)
+                cp "$SYNAPSE_SRC/package.json" "$SYNAPSE_SRC/package-lock.json" "$SYNAPSE_CACHE/"
+                (cd "$SYNAPSE_CACHE" && bun install)
                 touch "$SYNAPSE_CACHE/.stamp"
               fi
 
