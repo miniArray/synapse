@@ -20,6 +20,11 @@
       forAllSystems = nixpkgs.lib.genAttrs supportedSystems;
     in
     {
+      nixosModules = {
+        default = import ./nix/modules/nixos/synapse;
+        synapse = import ./nix/modules/nixos/synapse;
+      };
+
       packages = forAllSystems (
         system:
         let
