@@ -169,8 +169,14 @@ async function main(): Promise<void> {
         console.error(`[Server] New session: ${transport.sessionId}`);
 
         transport.onclose = () => {
-          sessions.delete(transport.sessionId);
-          console.error(`[Server] Session closed: ${transport.sessionId}`);
+          // Grace period: keep session alive briefly for in-flight requests
+          console.error(
+            `[Server] SSE closed: ${transport.sessionId} (grace period 5s)`,
+          );
+          setTimeout(() => {
+            sessions.delete(transport.sessionId);
+            console.error(`[Server] Session expired: ${transport.sessionId}`);
+          }, 5000);
         };
 
         await server.connect(transport);
